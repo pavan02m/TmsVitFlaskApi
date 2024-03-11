@@ -96,14 +96,15 @@ class DepartmentCourse(db.Model):
 class Section(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     section_id = db.Column(db.String(25))
-    department_id = db.Column(db.Integer, db.ForeignKey('department.id'))
+    department = db.Column(db.Integer, db.ForeignKey('department.id'))
     num_class_in_week = db.Column(db.Integer, default=0)
-    course_number = db.Column(
-        db.String(5), db.ForeignKey('course.course_number'))
-    meeting_time_id = db.Column(
-        db.String(4), db.ForeignKey('meeting_time.pid'))
-    room_id = db.Column(db.Integer, db.ForeignKey('room.id'))
-    instructor_id = db.Column(db.Integer, db.ForeignKey('instructor.id'))
+    course = db.Column(
+        db.String(5), db.ForeignKey('course.course_number'),  nullable=True)
+    meeting_time = db.Column(
+        db.String(4), db.ForeignKey('meeting_time.pid'), nullable=True)
+    room = db.Column(db.Integer, db.ForeignKey('room.id'), nullable=True)
+    instructor = db.Column(db.Integer, db.ForeignKey(
+        'instructor.id'), nullable=True)
 
     def set_room(self, room):
         section = Section.query.get(self.id)

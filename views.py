@@ -1,6 +1,7 @@
 from application import app
 from models import *
 import random as rnd
+import json
 from flask import request, jsonify
 app.app_context().push()
 
@@ -52,6 +53,9 @@ class Class:
 
     def set_room(self, room): self.room = room
 
+    def toJson(self):
+        return json.dumps(self, default=lambda o: o.__dict__)
+
 
 class Population:
     def __init__(self, size):
@@ -85,36 +89,46 @@ class Schedule:
         return self._fitness
 
     def initialize(self):
-        sections = Section.objects.all()
+        sections = Section.query.all()
         for section in sections:
             dept = section.department
             n = section.num_class_in_week
-            if n <= len(MeetingTime.objects.all()):
-                courses = dept.courses.all()
+            if n <= len(MeetingTime.query.all()):
+                courses = DepartmentCourse.query.filter(
+                    DepartmentCourse.department_id == dept).all()
+                # courses = dept.courses.all()
                 for course in courses:
-                    for i in range(n // len(courses)):
-                        crs_inst = course.instructors.all()
+                    for i in range(2):
+                        # crs_inst = course.instructors.all()
+                        crs_inst = CourseInstructor.query.filter(
+                            CourseInstructor.course_number == course.course_number).all()
                         newClass = Class(self._classNumb, dept,
                                          section.section_id, course)
                         self._classNumb += 1
                         newClass.set_meetingTime(data.get_meetingTimes(
-                        )[rnd.randrange(0, len(MeetingTime.objects.all()))])
+                        )[rnd.randrange(0, len(MeetingTime.query.all()))])
                         newClass.set_room(
                             data.get_rooms()[rnd.randrange(0, len(data.get_rooms()))])
                         newClass.set_instructor(
                             crs_inst[rnd.randrange(0, len(crs_inst))])
                         self._classes.append(newClass)
             else:
-                n = len(MeetingTime.objects.all())
-                courses = dept.courses.all()
+                print("inside else")
+                n = len(MeetingTime.query.all())
+                # courses = dept.courses.all()
+                courses = DepartmentCourse.query.filter(
+                    DepartmentCourse.department_id == dept).all()
                 for course in courses:
                     for i in range(n // len(courses)):
-                        crs_inst = course.instructors.all()
+                        # crs_inst = course.instructors.all()
+                        crs_inst = CourseInstructor.query.filter(
+                            CourseInstructor.course_number == course.course_number).all()
+                        print(len(crs_inst))
                         newClass = Class(self._classNumb, dept,
                                          section.section_id, course)
                         self._classNumb += 1
                         newClass.set_meetingTime(data.get_meetingTimes(
-                        )[rnd.randrange(0, len(MeetingTime.objects.all()))])
+                        )[rnd.randrange(0, len(MeetingTime.query.all()))])
                         newClass.set_room(
                             data.get_rooms()[rnd.randrange(0, len(data.get_rooms()))])
                         newClass.set_instructor(
@@ -127,7 +141,9 @@ class Schedule:
         self._numberOfConflicts = 0
         classes = self.get_classes()
         for i in range(len(classes)):
-            if classes[i].room.seating_capacity < int(classes[i].course.max_numb_students):
+            max_stud = Course.query.filter(
+                Course.course_number == classes[i].course.course_number).first().max_numb_students
+            if classes[i].room.seating_capacity < int(max_stud):
                 self._numberOfConflicts += 1
             for j in range(len(classes)):
                 if j >= i:
@@ -226,8 +242,8 @@ def timetable(request):
         population.get_schedules().sort(key=lambda x: x.get_fitness(), reverse=True)
         schedule = population.get_schedules()[0].get_classes()
 
-    return {'schedule': schedule, 'sections': Section.objects.all(),
-            'times': MeetingTime.objects.all()}
+    return {'schedule': schedule, 'sections': Section.query.all(),
+            'times': MeetingTime.query.all()}
 
 ############################################################################
 
@@ -448,14 +464,14 @@ def delete_department(dept_name):
 
 # ################ SECTION ######################
 # Create
-def create_section(section_id, department_name, num_class_in_week, course_number, meeting_time_pid, room_number, instructor_uid):
-    department = Department.query.filter_by(dept_name=department_name).first()
-    course = Course.query.get(course_number)
-    meeting_time = MeetingTime.query.get(meeting_time_pid)
-    room = Room.query.filter_by(r_number=room_number).first()
-    instructor = Instructor.query.filter_by(uid=instructor_uid).first()
+def create_section(section_id, department, num_class_in_week, course, meeting_time, room, instructor):
+    department = Department.query.filter_by(id=department).first()
+    course = Course.query.get(course)
+    meeting_time = MeetingTime.query.get(meeting_time)
+    room = Room.query.filter_by(r_number=room).first()
+    instructor = Instructor.query.filter_by(uid=instructor).first()
 
-    new_section = Section(section_id=section_id, department=department, num_class_in_week=num_class_in_week,
+    new_section = Section(section_id=section_id, department=department.id, num_class_in_week=num_class_in_week,
                           course=course, meeting_time=meeting_time, room=room, instructor=instructor)
 
     db.session.add(new_section)
@@ -469,22 +485,22 @@ def get_all_sections():
     sections = Section.query.all()
     result = []
     for section in sections:
-        result.append({"section_id": section.section_id, "department_name": section.department.dept_name,
-                       "num_class_in_week": section.num_class_in_week, "course_number": section.course.course_number,
-                       "meeting_time_pid": section.meeting_time.pid, "room_number": section.room.r_number,
-                       "instructor_uid": section.instructor.uid})
+        result.append({"section_id": section.section_id, "department": section.department.dept_name,
+                       "num_class_in_week": section.num_class_in_week, "course": section.course.course,
+                       "meeting_time": section.meeting_time.pid, "room": section.room.r_number,
+                       "instructor": section.instructor.uid})
     return jsonify({"sections": result})
 
 # Update
 
 
-def update_section(section_id, department_name, num_class_in_week, course_number, meeting_time_pid, room_number, instructor_uid):
+def update_section(section_id, department, num_class_in_week, course, meeting_time, room, instructor):
     section = Section.query.filter_by(section_id=section_id).first()
-    department = Department.query.filter_by(dept_name=department_name).first()
-    course = Course.query.get(course_number)
-    meeting_time = MeetingTime.query.get(meeting_time_pid)
-    room = Room.query.filter_by(r_number=room_number).first()
-    instructor = Instructor.query.filter_by(uid=instructor_uid).first()
+    department = Department.query.filter_by(dept_name=department).first()
+    course = Course.query.get(course)
+    meeting_time = MeetingTime.query.get(meeting_time)
+    room = Room.query.filter_by(r_number=room).first()
+    instructor = Instructor.query.filter_by(uid=instructor).first()
 
     section.department = department
     section.num_class_in_week = num_class_in_week

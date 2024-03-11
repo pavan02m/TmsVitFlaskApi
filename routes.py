@@ -87,6 +87,7 @@ def delete_meeting_time_route(meeting_time_pid):
 @app.route('/courses', methods=['POST'])
 def create_course_route():
     data = request.get_json()
+    print(data)
     return create_course(data['course_number'], data['course_name'], data['max_numb_students'], data['instructor_ids'])
 
 
@@ -158,6 +159,6 @@ def delete_section_route(section_id):
 
 # TIME TABLE GENERATION
 
-@app.route('/timetable-generation')
+@app.route('/timetable-generation', methods=['GET'])
 def generate_timetable():
     return timetable(request)
